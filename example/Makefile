@@ -7,3 +7,9 @@ testing-lsp: testing-lsp.cc lsp-protocol.h
 
 lsp-protocol.h: lsp-protocol.yaml ../schema-compiler
 	../schema-compiler $< > $@
+
+../schema-compiler:
+	$(MAKE) -C ..
+
+clean:
+	rm -f lsp-protocol.h testing-lsp

@@ -168,7 +168,8 @@ int main(int argc, char *argv[]) {
   }
 
   FILE *out = stdout;
-  fprintf(out, "#include <nlohmann/json.hpp>\n\n");
+  fprintf(out, "// Don't modify. Generated from %s\n", filename);
+  fprintf(out, "#pragma once\n#include <nlohmann/json.hpp>\n\n");
   for (const auto& o : *objects) {
     if (o->extends.empty()) {
       fprintf(stdout, "struct %s {\n", o->name.c_str());
@@ -196,9 +197,9 @@ int main(int argc, char *argv[]) {
 
     // nlohmann::json serialization
     fprintf(out, "\n");
-    fprintf(out, "  bool Deserialize(const nlohmann::json &j) {\n");
+    fprintf(out, "  void Deserialize(const nlohmann::json &j) {\n");
     if (!o->extends.empty()) {
-      fprintf(out, "    if (!%s::Deserialize(j)) return false;\n",
+      fprintf(out, "    %s::Deserialize(j);\n",
               o->extends.c_str());
     }
     for (const auto&p : o->properties) {
@@ -210,12 +211,11 @@ int main(int argc, char *argv[]) {
                 p.name.c_str(), p.name.c_str());
       }
     }
-    fprintf(out, "    return true;\n  }\n");
+    fprintf(out, "  }\n");
 
-    fprintf(out, "  bool Serialize(nlohmann::json *j) const {\n");
+    fprintf(out, "  void Serialize(nlohmann::json *j) const {\n");
     if (!o->extends.empty()) {
-      fprintf(out, "    if (!%s::Serialize(j)) return false;;\n",
-              o->extends.c_str());
+      fprintf(out, "    %s::Serialize(j);\n", o->extends.c_str());
     }
     for (const auto&p : o->properties) {
       if (p.object_type == nullptr) {
@@ -226,11 +226,14 @@ int main(int argc, char *argv[]) {
                 p.name.c_str(), p.name.c_str());
       }
     }
-    fprintf(out, "    return true;\n  }\n");
+    fprintf(out, "  }\n");
 
     fprintf(out, "};\n"); // End of struct
 
     // functions that are picked up by the nlohmann::json serializer
+    // We could generate template code once for all to_json/from_json that take
+    // a T obj, but to limit method lookup confusion for other objects that
+    // might interact with the json library, let's be explicit for each struct
     fprintf(out, "void to_json(nlohmann::json &j, const %s &obj) "
             "{ obj.Serialize(&j); }\n", o->name.c_str());
     fprintf(out, "void from_json(const nlohmann::json &j, %s &obj) "
