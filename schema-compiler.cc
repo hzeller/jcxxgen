@@ -169,7 +169,9 @@ int main(int argc, char *argv[]) {
 
   FILE *out = stdout;
   fprintf(out, "// Don't modify. Generated from %s\n", filename);
-  fprintf(out, "#pragma once\n#include <nlohmann/json.hpp>\n\n");
+  fprintf(out, "#pragma once\n"
+          "#include <string>\n"
+          "#include <nlohmann/json.hpp>\n\n");
   for (const auto& o : *objects) {
     if (o->extends.empty()) {
       fprintf(stdout, "struct %s {\n", o->name.c_str());
