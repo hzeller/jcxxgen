@@ -236,9 +236,9 @@ int main(int argc, char *argv[]) {
     // We could generate template code once for all to_json/from_json that take
     // a T obj, but to limit method lookup confusion for other objects that
     // might interact with the json library, let's be explicit for each struct
-    fprintf(out, "void to_json(nlohmann::json &j, const %s &obj) "
+    fprintf(out, "inline void to_json(nlohmann::json &j, const %s &obj) "
             "{ obj.Serialize(&j); }\n", o->name.c_str());
-    fprintf(out, "void from_json(const nlohmann::json &j, %s &obj) "
+    fprintf(out, "inline void from_json(const nlohmann::json &j, %s &obj) "
             "{ obj.Deserialize(j); }\n\n", o->name.c_str());
   }
 
