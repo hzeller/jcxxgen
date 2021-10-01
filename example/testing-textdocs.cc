@@ -13,7 +13,7 @@ int main() {
   nlohmann::json out_json = td;   // Automatic conversion back to json.
   std::cout << std::setw(2) << out_json << std::endl;
 
-  std::cout << "-- object and repeated fields --" << std::endl;
+  std::cout << "-- Anytype object and repeated fields --" << std::endl;
   ReadingList reading_list;
   reading_list.other = nlohmann::json({{ "freeform", "value"}});
   reading_list.to_read.emplace_back(td);
