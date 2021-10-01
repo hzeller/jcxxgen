@@ -21,7 +21,7 @@ TextDocument:
 ```
 
 You can **use defined types** then in other structs; here we use the
-`TextDocument` referred to above. If we don't know the type or just
+`TextDocument` type defined above. If we don't know the type or just
 want to store plain json, the type `object` can be used. All of these are
 stored by value.
 

@@ -32,7 +32,7 @@ struct Property {
   Location location = { "<>", 0};  // Where it is defined
   ObjectType *owner;
 
-  std::string name;               // e.g. "connection_by_name"
+  std::string name;
   bool is_optional;
   bool is_array;
   std::string default_value;
@@ -198,49 +198,16 @@ std::unique_ptr<ObjectTypeVector> LoadObjectTypes(const char *filename) {
   return result;
 }
 
-int main(int argc, char *argv[]) {
-  if (argc < 2) {
-    fprintf(stderr, "usage: %s [options] <protocol-spec-yaml>\n", argv[0]);
-    fprintf(stderr, "Options:\n"
-            "  -o <filename>     : Output to filename\n"
-            "  -j <json-include> : Include path to json.hpp, "
-            "including brackets <> or quotes \"\" around.\n"
-            "                      Default: '<nlohmann/json.hpp>'\n");
-    return 1;
-  }
-
-  const char *out_filename = nullptr;
-  const char *nlohmann_json_include = "<nlohmann/json.hpp>";
-  int opt;
-  while ((opt = getopt(argc, argv, "o:")) != -1) {
-    switch (opt) {
-    case 'o': out_filename = strdup(optarg); break;
-    case 'j': nlohmann_json_include = strdup(optarg); break;
-    }
-  }
-
-  const char *filename = argv[optind];
-  auto objects = LoadObjectTypes(filename);
-  if (!objects) {
-    fprintf(stderr, "Couldn't parse spec\n");
-    return 2;
-  }
-
-  FILE *out = stdout;
-  if (out_filename) {
-    out = fopen(out_filename, "w");
-    if (!out) {
-      perror("opening output file");
-      return 3;
-    }
-  }
-
+void GenerateCode(const char *filename,
+                  const char *nlohmann_json_include,
+                  const ObjectTypeVector &objects,
+                  FILE *out) {
   fprintf(out, "// Don't modify. Generated from %s\n", filename);
   fprintf(out, "#pragma once\n"
           "#include <string>\n"
           "#include <vector>\n");
   fprintf(out, "#include %s\n\n", nlohmann_json_include);
-  for (const auto& o : *objects) {
+  for (const auto& o : objects) {
     fprintf(out, "struct %s", o->name.c_str());
     bool is_first = true;
     for (const auto &e : o->extends) {
@@ -338,6 +305,44 @@ int main(int argc, char *argv[]) {
     fprintf(out, "inline void from_json(const nlohmann::json &j, %s &obj) "
             "{ obj.Deserialize(j); }\n\n", o->name.c_str());
   }
+}
 
-  for (auto& o : *objects) delete o;
+int main(int argc, char *argv[]) {
+  if (argc < 2) {
+    fprintf(stderr, "usage: %s [options] <protocol-spec-yaml>\n", argv[0]);
+    fprintf(stderr, "Options:\n"
+            "  -o <filename>     : Output to filename\n"
+            "  -j <json-include> : Include path to json.hpp, "
+            "including brackets <> or quotes \"\" around.\n"
+            "                      Default: '<nlohmann/json.hpp>'\n");
+    return 1;
+  }
+
+  const char *out_filename = nullptr;
+  const char *nlohmann_json_include = "<nlohmann/json.hpp>";
+  int opt;
+  while ((opt = getopt(argc, argv, "o:")) != -1) {
+    switch (opt) {
+    case 'o': out_filename = strdup(optarg); break;
+    case 'j': nlohmann_json_include = strdup(optarg); break;
+    }
+  }
+
+  const char *filename = argv[optind];
+  auto objects = LoadObjectTypes(filename);
+  if (!objects) {
+    fprintf(stderr, "Couldn't parse spec\n");
+    return 2;
+  }
+
+  FILE *out = stdout;
+  if (out_filename) {
+    out = fopen(out_filename, "w");
+    if (!out) {
+      perror("opening output file");
+      return 3;
+    }
+  }
+
+  GenerateCode(filename, nlohmann_json_include, *objects, out);
 }

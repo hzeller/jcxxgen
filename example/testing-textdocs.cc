@@ -8,7 +8,7 @@ int main() {
   nlohmann::json in_json = { { "url", "https://github.com/hzeller/jcxxgen"},
                              { "bytes", 12345 } };
   TextDocument td = in_json;  // Automatic conversion from json to object
-  td.bytes = 42;
+  td.bytes = 42;  // Let's change the value to see that it is serialized
 
   nlohmann::json out_json = td;   // Automatic conversion back to json.
   std::cout << std::setw(2) << out_json << std::endl;
