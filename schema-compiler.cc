@@ -328,8 +328,8 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  const char *filename = argv[optind];
-  auto objects = LoadObjectTypes(filename);
+  const char *schema_filename = argv[optind];
+  auto objects = LoadObjectTypes(schema_filename);
   if (!objects) {
     fprintf(stderr, "Couldn't parse spec\n");
     return 2;
@@ -344,5 +344,5 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  GenerateCode(filename, nlohmann_json_include, *objects, out);
+  GenerateCode(schema_filename, nlohmann_json_include, *objects, out);
 }
