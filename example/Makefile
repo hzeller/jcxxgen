@@ -1,15 +1,15 @@
-CXX_FLAGS=-W -Wall -Wextra
+CXX_FLAGS=-W -Wall -Wextra -std=c++17
 
-THIRD_PARTY_INCLUDES=-I../third_party/json/include
+SCHEMA_COMPILER=../jcxxgen
 
-testing-lsp: testing-lsp.cc lsp-protocol.h
-	$(CXX) $(CXX_FLAGS) $(THIRD_PARTY_INCLUDES) $< -o$@
+testing-textdocs: testing-textdocs.cc textdocs.h
+	$(CXX) $(CXX_FLAGS) $< -o$@
 
-lsp-protocol.h: lsp-protocol.yaml ../schema-compiler
-	../schema-compiler $< -o $@
+textdocs.h: textdocs.yaml $(SCHEMA_COMPILER)
+	$(SCHEMA_COMPILER) $< -o $@
 
-../schema-compiler:
+$(SCHEMA_COMPILER):
 	$(MAKE) -C ..
 
 clean:
-	rm -f lsp-protocol.h testing-lsp
+	rm -f textdocs.h testing-textdocs

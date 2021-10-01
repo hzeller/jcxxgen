@@ -1,0 +1,11 @@
+TextDocument:
+  url: string
+  bytes: integer
+
+ReadingList:
+  to_read+: TextDocument
+  other: object
+
+OptionallyVersionedTextDocument:
+  <: TextDocument
+  version?: integer
