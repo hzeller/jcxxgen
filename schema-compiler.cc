@@ -17,8 +17,9 @@ inline std::ostream& operator <<(std::ostream& out, const Location& loc) {
 struct ObjectType;
 
 struct Property {
-  Property(const Location &loc, const std::string &name, bool is_optional)
-    : location(loc), name(name), is_optional(is_optional) {}
+  Property(const Location &loc, const std::string &name,
+           bool is_optional, bool is_array)
+    : location(loc), name(name), is_optional(is_optional), is_array(is_array) {}
 
   bool EqualNameValue(const Property &other) const {
     return other.name == name;
@@ -27,7 +28,7 @@ struct Property {
   Location location = { "<>", 0};  // Where it is defined
   std::string name;               // e.g. "connection_by_name"
   bool is_optional;
-
+  bool is_array;
   std::string default_value;
 
   // TODO: have alternative types
@@ -60,7 +61,7 @@ static bool ParseObjectTypesFromFile(const char *filename,
 
   // For now, let's just read up to the first type and leave out alternatives
   static const std::regex property_re(
-    "^[ \t]+([a-zA-Z_<]+)(\\?)?:[ ]*([a-zA-Z0-9_]+)[ ]*(=[ \t]*(.+))?");
+    "^[ \t]+([a-zA-Z_<]+)([\\?\\+])?:[ ]*([a-zA-Z0-9_]+)[ ]*(=[ \t]*(.+))?");
 
   Location current_location = { filename, 0 };
   ObjectType *current_model = nullptr;
@@ -89,7 +90,7 @@ static bool ParseObjectTypesFromFile(const char *filename,
       return false;
     }
     if (!std::regex_search(line, matches, property_re)) {
-      std::cerr << current_location << "This doesn't look like a property";
+      std::cerr << current_location << "This doesn't look like a property\n";
       return false;
     }
 
@@ -98,7 +99,8 @@ static bool ParseObjectTypesFromFile(const char *filename,
       continue;
     }
 
-    Property property(current_location, matches[1], matches[2] == "?");
+    Property property(current_location, matches[1],
+                      matches[2] == "?", matches[2] == "+");
     property.type = matches[3];  // TODO: allow multiple
     property.default_value = matches[5];
     current_model->properties.push_back(property);
@@ -131,7 +133,7 @@ static bool ValidateTypes(ObjectTypeVector *object_types) {
 
     for (auto &p : o->properties) {
       const std::string &t = p.type;
-      if (t == "object" || t == "array" || t == "string" ||
+      if (t == "object" || t == "string" ||
           t == "integer" || t == "boolean") {
         continue;
       }
@@ -171,6 +173,7 @@ int main(int argc, char *argv[]) {
   fprintf(out, "// Don't modify. Generated from %s\n", filename);
   fprintf(out, "#pragma once\n"
           "#include <string>\n"
+          "#include <vector>\n"
           "#include <nlohmann/json.hpp>\n\n");
   for (const auto& o : *objects) {
     if (o->extends.empty()) {
@@ -191,10 +194,17 @@ int main(int argc, char *argv[]) {
         std::cerr << p.location << "Not supported yet '" << p.type << "'\n";
         continue;
       }
-      fprintf(out, "  %s %s", type.c_str(), p.name.c_str());
+      if (p.is_array) {
+        fprintf(out, "  std::vector<%s> %s", type.c_str(), p.name.c_str());
+      } else {
+        fprintf(out, "  %s %s", type.c_str(), p.name.c_str());
+      }
       if (!p.default_value.empty())
         fprintf(out, " = %s", p.default_value.c_str());
       fprintf(out, ";\n");
+      if (p.is_optional) {
+        fprintf(out, "  bool %s_is_set = false;\n", p.name.c_str());
+      }
     }
 
     // nlohmann::json serialization
@@ -205,12 +215,22 @@ int main(int argc, char *argv[]) {
               o->extends.c_str());
     }
     for (const auto&p : o->properties) {
-      if (p.object_type == nullptr) {
-        fprintf(out, "    j.at(\"%s\").get_to(%s);\n",
-                p.name.c_str(), p.name.c_str());
+      int indent = 4;
+      if (p.is_optional) {
+        fprintf(out, "%*sif (j.find(\"%s\") != j.end()) {\n",
+                indent, "", p.name.c_str());
+        indent += 4;
+        fprintf(out, "%*s%s_is_set = true;\n", indent, "", p.name.c_str());
+      }
+      if (p.object_type == nullptr || p.is_array) {
+        fprintf(out, "%*sj.at(\"%s\").get_to(%s);\n",
+                indent, "", p.name.c_str(), p.name.c_str());
       } else {
-        fprintf(out, "    %s.Deserialize(j.at(\"%s\"));\n",
-                p.name.c_str(), p.name.c_str());
+        fprintf(out, "%*s%s.Deserialize(j.at(\"%s\"));\n",
+                indent, "", p.name.c_str(), p.name.c_str());
+      }
+      if (p.is_optional) {
+        fprintf(out, "%*s}\n", indent-4, "");
       }
     }
     fprintf(out, "  }\n");
@@ -220,12 +240,17 @@ int main(int argc, char *argv[]) {
       fprintf(out, "    %s::Serialize(j);\n", o->extends.c_str());
     }
     for (const auto&p : o->properties) {
-      if (p.object_type == nullptr) {
-        fprintf(out, "    (*j)[\"%s\"] = %s;\n",
-                p.name.c_str(), p.name.c_str());
+      int indent = 4;
+      if (p.is_optional) {
+        fprintf(out, "%*sif (%s_is_set)", indent, "", p.name.c_str());
+        indent = 1;
+      }
+      if (p.object_type == nullptr || p.is_array) {
+        fprintf(out, "%*s(*j)[\"%s\"] = %s;\n",
+                indent, "", p.name.c_str(), p.name.c_str());
       } else {
-        fprintf(out, "    %s.Serialize(&(*j)[\"%s\"]);\n",
-                p.name.c_str(), p.name.c_str());
+        fprintf(out, "%*s%s.Serialize(&(*j)[\"%s\"]);\n",
+                indent, "", p.name.c_str(), p.name.c_str());
       }
     }
     fprintf(out, "  }\n");
