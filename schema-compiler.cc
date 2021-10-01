@@ -61,6 +61,10 @@ struct ObjectType {
 using ObjectTypeVector = std::vector<ObjectType *>;
 std::unique_ptr<ObjectTypeVector> LoadObjectTypes(const char *filename);
 
+static bool contains(const std::string& s, char c) {
+  return s.find(c) != std::string::npos;
+}
+
 static bool ParseObjectTypesFromFile(const char *filename,
                                      ObjectTypeVector *parsed_out) {
   static const std::regex emptyline_re("^[ \t]*(#.*)?");
@@ -68,7 +72,7 @@ static bool ParseObjectTypesFromFile(const char *filename,
 
   // For now, let's just read up to the first type and leave out alternatives
   static const std::regex property_re(
-    "^[ \t]+([a-zA-Z_<]+)([\\?\\+])?:[ ]*([a-zA-Z0-9_]+)[ ]*(=[ \t]*(.+))?");
+    "^[ \t]+([a-zA-Z_<]+)([\\?\\+]*):[ ]*([a-zA-Z0-9_]+)[ ]*(=[ \t]*(.+))?");
 
   Location current_location = { filename, 0 };
   ObjectType *current_model = nullptr;
@@ -107,7 +111,7 @@ static bool ParseObjectTypesFromFile(const char *filename,
     }
 
     Property property(current_location, current_model, matches[1],
-                      matches[2] == "?", matches[2] == "+");
+                      contains(matches[2], '?'), contains(matches[2], '+'));
     property.type = matches[3];  // TODO: allow multiple
     property.default_value = matches[5];
     current_model->properties.push_back(property);
