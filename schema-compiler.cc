@@ -1,3 +1,5 @@
+#include <unistd.h>
+
 #include <regex>
 #include <fstream>
 #include <unordered_map>
@@ -194,10 +196,20 @@ std::unique_ptr<ObjectTypeVector> LoadObjectTypes(const char *filename) {
 
 int main(int argc, char *argv[]) {
   if (argc < 2) {
-    fprintf(stderr, "usage: %s <protocol-spec-yaml>\n", argv[0]);
+    fprintf(stderr, "usage: %s [options] <protocol-spec-yaml>\n", argv[0]);
+    fprintf(stderr, "Options:\n\t-o <filename> : Output to filename\n");
     return 1;
   }
-  const char *filename = argv[1];
+
+  const char *out_filename = nullptr;
+  int opt;
+  while ((opt = getopt(argc, argv, "o:")) != -1) {
+    switch (opt) {
+    case 'o': out_filename = strdup(optarg); break;
+    }
+  }
+
+  const char *filename = argv[optind];
   auto objects = LoadObjectTypes(filename);
   if (!objects) {
     fprintf(stderr, "Couldn't parse spec\n");
@@ -205,20 +217,28 @@ int main(int argc, char *argv[]) {
   }
 
   FILE *out = stdout;
+  if (out_filename) {
+    out = fopen(out_filename, "w");
+    if (!out) {
+      perror("opening output file");
+      return 3;
+    }
+  }
+
   fprintf(out, "// Don't modify. Generated from %s\n", filename);
   fprintf(out, "#pragma once\n"
           "#include <string>\n"
           "#include <vector>\n"
           "#include <nlohmann/json.hpp>\n\n");
   for (const auto& o : *objects) {
-    fprintf(stdout, "struct %s", o->name.c_str());
+    fprintf(out, "struct %s", o->name.c_str());
     bool is_first = true;
     for (const auto &e : o->extends) {
-      fprintf(stdout, "%s", is_first ? " :" : ",");
-      fprintf(stdout, " public %s", e.c_str());
+      fprintf(out, "%s", is_first ? " :" : ",");
+      fprintf(out, " public %s", e.c_str());
       is_first = false;
     }
-    fprintf(stdout, " {\n");
+    fprintf(out, " {\n");
     for (const auto&p : o->properties) {
       std::string type;
       if (p.object_type) type = p.object_type->name;
