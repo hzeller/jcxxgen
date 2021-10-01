@@ -45,11 +45,14 @@ OptionallyVersionedTextDocument:
   version?: integer
 ```
 
-You can combine `+` and `?` for **optional repeated** fields. Just a repeated
-field is _always_ serialized while an optional field will not show up in the
+You can combine `+` and `?` for **optional repeated** fields. A non-optional
+repeated field is _always_ serialized while an optional field will not show up
+in the JSON output if it is not set (the availableness of an optional field
+is indicated with an `has_*` flag, so here `has_version`.
+
 If need be, even **multiple inheritance** works by adding additional `<:`.
 
-### Output
+### Generated code
 
 The output are structs with each of the properties stored by value; repeated
 fields are `std::vector<theType>`. Also the necessary boilerplate is generated
