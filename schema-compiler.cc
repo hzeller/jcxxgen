@@ -201,15 +201,21 @@ std::unique_ptr<ObjectTypeVector> LoadObjectTypes(const char *filename) {
 int main(int argc, char *argv[]) {
   if (argc < 2) {
     fprintf(stderr, "usage: %s [options] <protocol-spec-yaml>\n", argv[0]);
-    fprintf(stderr, "Options:\n\t-o <filename> : Output to filename\n");
+    fprintf(stderr, "Options:\n"
+            "  -o <filename>     : Output to filename\n"
+            "  -j <json-include> : Include path to json.hpp, "
+            "including brackets <> or quotes \"\" around.\n"
+            "                      Default: '<nlohmann/json.hpp>'\n");
     return 1;
   }
 
   const char *out_filename = nullptr;
+  const char *nlohmann_json_include = "<nlohmann/json.hpp>";
   int opt;
   while ((opt = getopt(argc, argv, "o:")) != -1) {
     switch (opt) {
     case 'o': out_filename = strdup(optarg); break;
+    case 'j': nlohmann_json_include = strdup(optarg); break;
     }
   }
 
@@ -232,8 +238,8 @@ int main(int argc, char *argv[]) {
   fprintf(out, "// Don't modify. Generated from %s\n", filename);
   fprintf(out, "#pragma once\n"
           "#include <string>\n"
-          "#include <vector>\n"
-          "#include <nlohmann/json.hpp>\n\n");
+          "#include <vector>\n");
+  fprintf(out, "#include %s\n\n", nlohmann_json_include);
   for (const auto& o : *objects) {
     fprintf(out, "struct %s", o->name.c_str());
     bool is_first = true;
