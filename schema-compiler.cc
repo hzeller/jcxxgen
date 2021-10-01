@@ -260,7 +260,8 @@ int main(int argc, char *argv[]) {
         fprintf(out, " = %s", p.default_value.c_str());
       fprintf(out, ";\n");
       if (p.is_optional) {
-        fprintf(out, "  bool %s_is_set = false;\n", p.name.c_str());
+        fprintf(out, "  bool has_%s = false;  // optional property\n",
+                p.name.c_str());
       }
     }
 
@@ -273,18 +274,22 @@ int main(int argc, char *argv[]) {
     }
     for (const auto&p : o->properties) {
       int indent = 4;
+      std::string access_call = "j.at(\"" + p.name + "\")";
+      std::string access_deref =  access_call + ".";
       if (p.is_optional) {
-        fprintf(out, "%*sif (j.find(\"%s\") != j.end()) {\n",
+        fprintf(out, "%*sif (auto found = j.find(\"%s\"); found != j.end()) {\n",
                 indent, "", p.name.c_str());
         indent += 4;
-        fprintf(out, "%*s%s_is_set = true;\n", indent, "", p.name.c_str());
+        fprintf(out, "%*shas_%s = true;\n", indent, "", p.name.c_str());
+        access_call = "*found";
+        access_deref = "found->";
       }
       if (p.object_type == nullptr || p.is_array) {
-        fprintf(out, "%*sj.at(\"%s\").get_to(%s);\n",
-                indent, "", p.name.c_str(), p.name.c_str());
+        fprintf(out, "%*s%sget_to(%s);\n",
+                indent, "", access_deref.c_str(), p.name.c_str());
       } else {
-        fprintf(out, "%*s%s.Deserialize(j.at(\"%s\"));\n",
-                indent, "", p.name.c_str(), p.name.c_str());
+        fprintf(out, "%*s%s.Deserialize(%s);\n",
+                indent, "", p.name.c_str(), access_call.c_str());
       }
       if (p.is_optional) {
         fprintf(out, "%*s}\n", indent-4, "");
@@ -299,7 +304,7 @@ int main(int argc, char *argv[]) {
     for (const auto&p : o->properties) {
       int indent = 4;
       if (p.is_optional) {
-        fprintf(out, "%*sif (%s_is_set)", indent, "", p.name.c_str());
+        fprintf(out, "%*sif (has_%s)", indent, "", p.name.c_str());
         indent = 1;
       }
       if (p.object_type == nullptr || p.is_array) {
