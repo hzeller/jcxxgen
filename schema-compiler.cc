@@ -1,6 +1,7 @@
 #include <regex>
 #include <fstream>
 #include <unordered_map>
+#include <unordered_set>
 #include <iostream>
 #include <string>
 #include <memory>
@@ -17,19 +18,23 @@ inline std::ostream& operator <<(std::ostream& out, const Location& loc) {
 struct ObjectType;
 
 struct Property {
-  Property(const Location &loc, const std::string &name,
+  Property(const Location &loc, ObjectType *owner, const std::string &name,
            bool is_optional, bool is_array)
-    : location(loc), name(name), is_optional(is_optional), is_array(is_array) {}
+    : location(loc), owner(owner), name(name),
+      is_optional(is_optional), is_array(is_array) {}
 
   bool EqualNameValue(const Property &other) const {
     return other.name == name;
   }
 
   Location location = { "<>", 0};  // Where it is defined
+  ObjectType *owner;
+
   std::string name;               // e.g. "connection_by_name"
   bool is_optional;
   bool is_array;
   std::string default_value;
+
 
   // TODO: have alternative types
   std::string type;
@@ -43,10 +48,10 @@ struct ObjectType {
   Location location;
   std::string name;
 
-  std::string extends;   // name of the superclass
+  std::vector<std::string> extends;   // name of the superclasses
   std::vector<Property> properties;
 
-  const ObjectType *superclass = nullptr;  // fixed up after all models read.
+  std::vector<const ObjectType*> superclasses;  // fixed up after all read.
 };
 
 // Parse models from file. Return vector of models if successful, nullptr
@@ -95,11 +100,11 @@ static bool ParseObjectTypesFromFile(const char *filename,
     }
 
     if (matches[1] == "<") {
-      current_model->extends = matches[3];
+      current_model->extends.push_back(matches[3]);
       continue;
     }
 
-    Property property(current_location, matches[1],
+    Property property(current_location, current_model, matches[1],
                       matches[2] == "?", matches[2] == "+");
     property.type = matches[3];  // TODO: allow multiple
     property.default_value = matches[5];
@@ -121,14 +126,14 @@ static bool ValidateTypes(ObjectTypeVector *object_types) {
       return false;
     }
 
-    // Resolve superclass
-    if (!o->extends.empty()) {
-      const auto& found = typeByName.find(o->extends);
+    // Resolve superclasses
+    for (const auto &e : o->extends) {
+      const auto& found = typeByName.find(e);
       if (found == typeByName.end()) {
-        std::cerr << o->location << "Unknown superclass " << o->extends;
+        std::cerr << o->location << "Unknown superclass " << e << "\n";
         return false;
       }
-      o->superclass = found->second;
+      o->superclasses.push_back(found->second);
     }
 
     for (auto &p : o->properties) {
@@ -145,7 +150,37 @@ static bool ValidateTypes(ObjectTypeVector *object_types) {
       }
       p.object_type = found->second;
     }
+
+    // Validate that we don't have properties with the same name twice in
+    // one class (including superclasses)
+    std::unordered_map<std::string, const Property*> my_property_names;
+    for (const auto &p : o->properties) {
+      auto inserted = my_property_names.insert({p.name, &p});
+      if (inserted.second) continue;
+      std::cerr << p.location << "In class '" << o->name
+                << "' same name property '"
+                << p.name << "' defined here\n"
+                << inserted.first->second->location << "  ... and here\n";
+      return false;
+    }
+    for (const auto &s : o->superclasses) {
+      for (const auto &sp : s->properties) {
+        auto inserted = my_property_names.insert({sp.name, &sp});
+        if (inserted.second) continue;
+        const bool is_owner_superclass = (inserted.first->second->owner != o);
+        std::cerr << o->location << o->name
+                  << " has duplicate property '" << sp.name << "'\n"
+                  << inserted.first->second->location
+                  << "  ... found in "
+                  << (is_owner_superclass ? "super" : "")
+                  << "class '" << inserted.first->second->owner->name << "'\n"
+                  << sp.location
+                  << "  ... and in superclass '" << s->name << "'\n";
+        return false;
+      }
+    }
   }
+
   return true;
 }
 
@@ -176,12 +211,14 @@ int main(int argc, char *argv[]) {
           "#include <vector>\n"
           "#include <nlohmann/json.hpp>\n\n");
   for (const auto& o : *objects) {
-    if (o->extends.empty()) {
-      fprintf(stdout, "struct %s {\n", o->name.c_str());
-    } else {
-      fprintf(stdout, "struct %s : public %s {\n",
-              o->name.c_str(), o->extends.c_str());
+    fprintf(stdout, "struct %s", o->name.c_str());
+    bool is_first = true;
+    for (const auto &e : o->extends) {
+      fprintf(stdout, "%s", is_first ? " :" : ",");
+      fprintf(stdout, " public %s", e.c_str());
+      is_first = false;
     }
+    fprintf(stdout, " {\n");
     for (const auto&p : o->properties) {
       std::string type;
       if (p.object_type) type = p.object_type->name;
@@ -210,9 +247,9 @@ int main(int argc, char *argv[]) {
     // nlohmann::json serialization
     fprintf(out, "\n");
     fprintf(out, "  void Deserialize(const nlohmann::json &j) {\n");
-    if (!o->extends.empty()) {
+    for (const auto &e : o->extends) {
       fprintf(out, "    %s::Deserialize(j);\n",
-              o->extends.c_str());
+              e.c_str());
     }
     for (const auto&p : o->properties) {
       int indent = 4;
@@ -236,8 +273,8 @@ int main(int argc, char *argv[]) {
     fprintf(out, "  }\n");
 
     fprintf(out, "  void Serialize(nlohmann::json *j) const {\n");
-    if (!o->extends.empty()) {
-      fprintf(out, "    %s::Serialize(j);\n", o->extends.c_str());
+    for (const auto &e : o->extends) {
+      fprintf(out, "    %s::Serialize(j);\n", e.c_str());
     }
     for (const auto&p : o->properties) {
       int indent = 4;
