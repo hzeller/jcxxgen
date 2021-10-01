@@ -1,8 +1,6 @@
 JSON / C++ object schema
 ========================
 
-_Work in progress, things are in flux._
-
 Convert a schema, written in YAML to a C++ struct hierarchy boilerplate that
 can be serialized and deserialized. Generates structs and the necessary
 serialization functions to work seamlessly with [nlohmann/json].
@@ -78,7 +76,6 @@ Options:
 ```
 
 ### Work in Progress
-Note, this is work in progress, things might change. In particular optional
-fields are not implemented yet.
+Note, this is work in progress, things might change.
 
 [nlohmann/json]: https://github.com/nlohmann/json
