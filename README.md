@@ -67,6 +67,8 @@ Here is a tiny example, for more check out the [example/](./example) dirctory.
 
 ### Usage
 
+Input is the yaml schema file, output is a c++ header file.
+
 ```
 usage: jcxxgen [options] <protocol-spec-yaml>
 Options:
